@@ -90,21 +90,42 @@ export default function UploadPage() {
 
       const data = await res.json();
 
-      sessionStorage.setItem("casData", JSON.stringify(data));
+      // ✅ CRITICAL: Block navigation if the API returned an error
+      if (!res.ok || data.is_mock) {
+        // Go back to step 1 so user can try again
+        setLoading(false);
+        setStep(1);
 
+        if (res.status === 422) {
+          // PDF locked / wrong password
+          showToast(
+            data.parse_message || "❌ Could not unlock PDF. Please enter your PAN as password (e.g. ABCDE1234F).",
+            "error"
+          );
+        } else if (res.status === 400 && data.error?.includes("not a valid")) {
+          // Not a CAS file at all
+          showToast(
+            "❌ This file is not a valid CAS statement. Download one of the sample CAS PDFs below to test.",
+            "error"
+          );
+        } else {
+          showToast(data.parse_message || "❌ Could not parse file.", "error");
+        }
+        return;
+      }
+
+      // ✅ Valid real CAS data — proceed to dashboard
+      sessionStorage.setItem("casData", JSON.stringify(data));
       setStep(3);
-      showToast(data.parse_message || "Analysis complete!", data.is_mock ? "warning" : "success");
+      showToast(data.parse_message || "✅ Analysis complete!", "success");
 
       setTimeout(() => {
         router.push("/dashboard");
       }, 1200);
     } catch {
-      showToast("Failed to process. Using demo data.", "warning");
-      const mockRes = await fetch("/api/parse-cas", { method: "POST", body: new FormData() });
-      const mockData = await mockRes.json();
-      sessionStorage.setItem("casData", JSON.stringify(mockData));
-      setStep(3);
-      setTimeout(() => router.push("/dashboard"), 1200);
+      setStep(1);
+      setLoading(false);
+      showToast("❌ Network error. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -242,28 +263,70 @@ export default function UploadPage() {
               </button>
             </div>
 
-            {/* Sample CAS download */}
-            <div style={{ textAlign: "center", marginTop: "20px" }}>
-              <button
-                onClick={downloadSampleCAS}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--accent-teal)",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                  fontWeight: 600,
-                }}
-              >
-                ↓ Download Sample CAS PDF to test
-              </button>
+            {/* Sample CAS downloads */}
+            <div
+              style={{
+                marginTop: "20px",
+                padding: "16px 20px",
+                background: "var(--bg-card-subtle)",
+                border: "1px solid var(--border)",
+                borderRadius: "14px",
+              }}
+            >
+              <div style={{ fontSize: "12px", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "1px", marginBottom: "12px" }}>
+                📥 DOWNLOAD SAMPLE CAS FILES TO TEST
+              </div>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <a
+                  href="/samples/sample_cas_priya_patel.pdf"
+                  download="sample_cas_priya_patel.pdf"
+                  style={{
+                    flex: 1,
+                    minWidth: "200px",
+                    display: "block",
+                    padding: "12px 16px",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-bright)",
+                    borderRadius: "10px",
+                    textDecoration: "none",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-teal)"; e.currentTarget.style.background = "rgba(0,212,255,0.06)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-bright)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+                >
+                  <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--accent-teal)" }}>📄 Portfolio 1 — Priya Patel</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "3px" }}>₹38.4L · 4 Funds · 5 Stocks · PAN: ABCDE1234F</div>
+                </a>
+                <a
+                  href="/samples/sample_cas_vikram_verma.pdf"
+                  download="sample_cas_vikram_verma.pdf"
+                  style={{
+                    flex: 1,
+                    minWidth: "200px",
+                    display: "block",
+                    padding: "12px 16px",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-bright)",
+                    borderRadius: "10px",
+                    textDecoration: "none",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-purple)"; e.currentTarget.style.background = "rgba(129,140,248,0.06)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-bright)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+                >
+                  <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--accent-purple)" }}>📄 Portfolio 2 — Vikramaditya Verma</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "3px" }}>₹52.1L · 4 Funds · 5 Stocks · PAN: XYZPA9876K</div>
+                </a>
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "10px" }}>
+                ⚡ Upload the PDF above → enter the PAN as password → get full AI analysis!
+              </div>
             </div>
 
             <div
               style={{
-                marginTop: "24px",
-                padding: "16px 20px",
+                marginTop: "16px",
+                padding: "14px 18px",
                 background: "var(--card-safe-bg)",
                 border: "1px solid var(--card-safe-border)",
                 borderRadius: "12px",
@@ -273,14 +336,14 @@ export default function UploadPage() {
               }}
             >
               🔒 <strong style={{ color: "var(--accent-emerald)" }}>Privacy Guaranteed:</strong> PDF parsing runs in-memory and
-              is never stored in any database. Session ends = all data is purged.
+              is never stored. Session ends = all data is purged instantly.
             </div>
           </div>
         )}
 
         {step === 1 && file && (
           <div className="glass-card">
-            {/* File info */}
+            {/* Back to upload + file name row */}
             <div
               style={{
                 padding: "16px 20px",
@@ -294,18 +357,33 @@ export default function UploadPage() {
               }}
             >
               <span style={{ fontSize: "24px" }}>📄</span>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-primary)" }}>{file.name}</div>
                 <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                   {(file.size / 1024).toFixed(1)} KB
                 </div>
               </div>
-              <div
-                className="badge badge-safe"
-                style={{ marginLeft: "auto" }}
-              >
+              <div className="badge badge-safe" style={{ marginLeft: "auto" }}>
                 Ready
               </div>
+              <button
+                onClick={() => { setFile(null); setStep(0); setPassword(""); setConsent(false); }}
+                style={{
+                  background: "none",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  color: "var(--text-muted)",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-rose)"; e.currentTarget.style.color = "var(--accent-rose)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-muted)"; }}
+              >
+                ✕ Change File
+              </button>
             </div>
 
             {/* Password field */}
