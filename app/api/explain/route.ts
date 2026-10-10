@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+function getGroqApiKey(): string {
+  try {
+    const envPath = path.join(process.cwd(), ".env.local");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const match = content.match(/GROQ_API_KEY=([^\r\n]+)/);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+  } catch {}
+  return process.env.GROQ_API_KEY || "";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,42 +65,45 @@ Provide a thorough, structured, and paragraph-based explanation answering their 
 Portfolio Data Context:
 ${JSON.stringify(portfolioContext, null, 2)}`;
 
-    // Call Groq API (Llama 3.3 70B)
-    try {
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.25,
-          max_tokens: 1500,
-        }),
-      });
+    // Call Groq API with fallback models
+    const candidateModels = ["llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
+    for (const model of candidateModels) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${getGroqApiKey()}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.25,
+            max_tokens: 1500,
+          }),
+        });
 
-      if (groqRes.ok) {
-        const groqData = await groqRes.json();
-        const content = groqData.choices?.[0]?.message?.content;
-        if (content) {
-          return NextResponse.json({
-            explanation: content,
-            provider: "Groq (Llama 3.3 70B Versatile)",
-            context_used: Object.keys(insights || {}),
-            disclaimer: "InvestIQ AI analysis powered by Groq. For SEBI-registered advisory, consult an authorized financial advisor.",
-          });
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const content = groqData.choices?.[0]?.message?.content;
+          if (content) {
+            return NextResponse.json({
+              explanation: content,
+              provider: `Groq AI (${model})`,
+              context_used: Object.keys(insights || {}),
+              disclaimer: "InvestIQ AI analysis powered by Groq. For SEBI-registered advisory, consult an authorized financial advisor.",
+            });
+          }
+        } else {
+          const errText = await groqRes.text();
+          console.error(`Groq API error for ${model}:`, errText);
         }
-      } else {
-        const errText = await groqRes.text();
-        console.error("Groq API error response:", errText);
+      } catch (groqErr) {
+        console.error(`Groq fetch error for ${model}:`, groqErr);
       }
-    } catch (groqErr) {
-      console.error("Groq fetch error, falling back to rule-based engine:", groqErr);
     }
 
     // Fallback structured paragraphs

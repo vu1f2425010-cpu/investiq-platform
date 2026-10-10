@@ -33,6 +33,434 @@ import {
 
 const COLORS = ["#00D4FF", "#818CF8", "#10B981", "#F59E0B", "#F43F5E", "#38BDF8"];
 
+// ============== Investment Suggestion Types ==============
+interface InvestmentSuggestion {
+  id: string;
+  type: "REIT" | "InvIT" | "Bond";
+  name: string;
+  issuer: string;
+  ticker: string;
+  category: string;
+  minInvestment: number;
+  recommendedAmount: number;
+  tenureMonths: number;
+  expectedReturnPct: number;
+  distributionYield: number;
+  riskLevel: "Low" | "Moderate" | "High";
+  riskScore: number;
+  projectedValue: number;
+  totalReturn: number;
+  totalReturnPct: number;
+  annualIncome: number;
+  taxBenefit: string;
+  liquidity: "High" | "Moderate" | "Low";
+  exchangeListed: boolean;
+  rating: string;
+  whyRecommended: string;
+  keyRisks: string[];
+  highlights: string[];
+  allocationPct: number;
+}
+
+// ============== Investment Panel Component ==============
+function InvestmentPanel({
+  suggestions,
+  loading,
+  provider,
+  onClose,
+  formatINR,
+  totalPortfolioValue,
+}: {
+  suggestions: InvestmentSuggestion[];
+  loading: boolean;
+  provider: string;
+  onClose: () => void;
+  formatINR: (n: number) => string;
+  totalPortfolioValue: number;
+}) {
+  const [activeTab, setActiveTab] = useState<"All" | "REIT" | "InvIT" | "Bond">("All");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filtered = activeTab === "All" ? suggestions : suggestions.filter((s) => s.type === activeTab);
+
+  const totalRecommendedInvest = suggestions.reduce((sum, s) => sum + (s.recommendedAmount || 0), 0);
+  const totalProjectedReturn = suggestions.reduce((sum, s) => sum + (s.totalReturn || 0), 0);
+  const avgYield = suggestions.length > 0
+    ? (suggestions.reduce((sum, s) => sum + s.distributionYield, 0) / suggestions.length).toFixed(1)
+    : "0";
+
+  const tabActiveClass = (tab: string) => {
+    if (tab === activeTab) {
+      if (tab === "REIT") return "invest-tab active-reit";
+      if (tab === "InvIT") return "invest-tab active-invit";
+      if (tab === "Bond") return "invest-tab active-bond";
+      return "invest-tab active-all";
+    }
+    return "invest-tab";
+  };
+
+  const riskDotClass = (level: string) => {
+    if (level === "Low") return "risk-dot risk-low";
+    if (level === "High") return "risk-dot risk-high";
+    return "risk-dot risk-moderate";
+  };
+
+  const typeColorMap: Record<string, string> = {
+    REIT: "var(--accent-teal)",
+    InvIT: "var(--accent-purple)",
+    Bond: "var(--accent-emerald)",
+  };
+
+  const tenureLabel = (months: number) => {
+    if (months < 12) return `${months} months`;
+    const y = Math.floor(months / 12);
+    const m = months % 12;
+    return m > 0 ? `${y}yr ${m}mo` : `${y} year${y > 1 ? "s" : ""}`;
+  };
+
+  return (
+    <div className="invest-panel-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="invest-panel">
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+          <div>
+            <div className="section-label" style={{ color: "var(--accent-amber)" }}>GROQ AI · INVESTMENT INTELLIGENCE</div>
+            <h2 style={{ fontSize: "26px", fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.5px", marginTop: "4px" }}>
+              💰 Smart Investment Suggestions
+            </h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginTop: "6px", fontWeight: 500 }}>
+              Personalized REITs · InvITs · Bonds — curated by Groq AI based on your portfolio
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--accent-teal)", background: "rgba(0,212,255,0.12)", border: "1px solid var(--border-bright)", padding: "4px 12px", borderRadius: "6px" }}>
+              ⚡ {provider}
+            </span>
+            <button
+              onClick={onClose}
+              style={{ background: "var(--bg-card-subtle)", border: "1px solid var(--border)", borderRadius: "10px", padding: "8px 16px", cursor: "pointer", color: "var(--text-secondary)", fontSize: "14px", fontWeight: 700 }}
+            >
+              ✕ Close
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Banner */}
+        {!loading && suggestions.length > 0 && (
+          <div className="invest-summary-banner" style={{ marginBottom: "24px" }}>
+            <div className="invest-summary-stat">
+              <div className="invest-summary-stat-label">Total Suggested Allocation</div>
+              <div className="invest-summary-stat-value">{formatINR(totalRecommendedInvest)}</div>
+            </div>
+            <div style={{ width: "1px", height: "36px", background: "var(--border)" }} />
+            <div className="invest-summary-stat">
+              <div className="invest-summary-stat-label">Projected Additional Returns</div>
+              <div className="invest-summary-stat-value" style={{ color: "var(--accent-emerald)" }}>{formatINR(totalProjectedReturn)}</div>
+            </div>
+            <div style={{ width: "1px", height: "36px", background: "var(--border)" }} />
+            <div className="invest-summary-stat">
+              <div className="invest-summary-stat-label">Avg. Distribution Yield</div>
+              <div className="invest-summary-stat-value" style={{ color: "var(--accent-purple)" }}>{avgYield}% p.a.</div>
+            </div>
+            <div style={{ width: "1px", height: "36px", background: "var(--border)" }} />
+            <div className="invest-summary-stat">
+              <div className="invest-summary-stat-label">Portfolio Allocation</div>
+              <div className="invest-summary-stat-value" style={{ color: "var(--accent-sky)" }}>
+                {totalPortfolioValue > 0 ? ((totalRecommendedInvest / totalPortfolioValue) * 100).toFixed(1) : 0}% of Portfolio
+              </div>
+            </div>
+            <div style={{ marginLeft: "auto" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, marginBottom: "4px" }}>INSTRUMENTS</div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <span className="type-badge reit">🏢 {suggestions.filter(s => s.type === "REIT").length} REITs</span>
+                <span className="type-badge invit">⚡ {suggestions.filter(s => s.type === "InvIT").length} InvITs</span>
+                <span className="type-badge bond">📄 {suggestions.filter(s => s.type === "Bond").length} Bonds</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="invest-tabs" style={{ marginBottom: "20px" }}>
+          {(["All", "REIT", "InvIT", "Bond"] as const).map((tab) => (
+            <button key={tab} className={tabActiveClass(tab)} onClick={() => setActiveTab(tab)}>
+              {tab === "All" && "🌟 "}{tab === "REIT" && "🏢 "}{tab === "InvIT" && "⚡ "}{tab === "Bond" && "📄 "}
+              {tab === "All" ? "All Investments" : tab + "s"}
+              {tab !== "All" && (
+                <span style={{ marginLeft: "6px", opacity: 0.7 }}>({suggestions.filter(s => s.type === tab).length})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Loading Skeletons */}
+        {loading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "20px" }}>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} style={{ borderRadius: "18px", overflow: "hidden", border: "1px solid var(--border)" }}>
+                <div className="invest-skeleton" style={{ height: "5px" }} />
+                <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div className="invest-skeleton" style={{ height: "20px", width: "60%" }} />
+                  <div className="invest-skeleton" style={{ height: "14px", width: "40%" }} />
+                  <div className="invest-skeleton" style={{ height: "60px" }} />
+                  <div className="invest-skeleton" style={{ height: "14px" }} />
+                  <div className="invest-skeleton" style={{ height: "14px", width: "80%" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Investment Cards */}
+        {!loading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "20px" }}>
+            {filtered.map((s) => {
+              const isExpanded = expandedId === s.id;
+              const typeClass = s.type.toLowerCase();
+              const typeColor = typeColorMap[s.type] || "var(--accent-teal)";
+              const returnMeterWidth = Math.min(100, (s.expectedReturnPct / 20) * 100);
+              const yieldMeterWidth = Math.min(100, (s.distributionYield / 12) * 100);
+
+              return (
+                <div
+                  key={s.id}
+                  className={`invest-card ${typeClass}`}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setExpandedId(isExpanded ? null : s.id)}
+                >
+                  {/* Card Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                        <span className={`type-badge ${typeClass}`}>
+                          {s.type === "REIT" ? "🏢" : s.type === "InvIT" ? "⚡" : "📄"} {s.type}
+                        </span>
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>{s.ticker}</span>
+                      </div>
+                      <div style={{ fontSize: "15px", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>{s.name}</div>
+                      <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "3px", fontWeight: 500 }}>{s.issuer}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "12px" }}>
+                      <div style={{ fontSize: "22px", fontWeight: 900, color: typeColor, fontFamily: "var(--font-mono)" }}>
+                        {s.expectedReturnPct}%
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>p.a. return</div>
+                    </div>
+                  </div>
+
+                  {/* Return Meter */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>Expected Annual Return</span>
+                      <span style={{ fontSize: "11px", fontWeight: 800, color: typeColor }}>{s.expectedReturnPct}%</span>
+                    </div>
+                    <div className="return-meter">
+                      <div
+                        className="return-meter-fill"
+                        style={{ width: `${returnMeterWidth}%`, background: `linear-gradient(90deg, ${typeColor}, ${typeColor}88)` }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>Distribution Yield</span>
+                      <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--accent-amber)" }}>{s.distributionYield}%</span>
+                    </div>
+                    <div className="return-meter">
+                      <div
+                        className="return-meter-fill"
+                        style={{ width: `${yieldMeterWidth}%`, background: "linear-gradient(90deg, var(--accent-amber), var(--accent-rose))" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Key Stats Grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+                    <div style={{ background: "var(--bg-card-subtle)", borderRadius: "10px", padding: "12px" }}>
+                      <div style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "1px", marginBottom: "4px" }}>RECOMMENDED</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: typeColor, fontFamily: "var(--font-mono)" }}>{formatINR(s.recommendedAmount)}</div>
+                    </div>
+                    <div style={{ background: "var(--bg-card-subtle)", borderRadius: "10px", padding: "12px" }}>
+                      <div style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "1px", marginBottom: "4px" }}>TENURE</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>{tenureLabel(s.tenureMonths)}</div>
+                    </div>
+                    <div style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: "10px", padding: "12px" }}>
+                      <div style={{ fontSize: "10px", color: "var(--accent-emerald)", fontWeight: 700, letterSpacing: "1px", marginBottom: "4px" }}>PROJECTED VALUE</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "var(--accent-emerald)", fontFamily: "var(--font-mono)" }}>{formatINR(s.projectedValue)}</div>
+                    </div>
+                    <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: "10px", padding: "12px" }}>
+                      <div style={{ fontSize: "10px", color: "var(--accent-amber)", fontWeight: 700, letterSpacing: "1px", marginBottom: "4px" }}>TOTAL RETURN</div>
+                      <div style={{ fontSize: "15px", fontWeight: 900, color: "var(--accent-amber)", fontFamily: "var(--font-mono)" }}>+{formatINR(s.totalReturn)}</div>
+                    </div>
+                  </div>
+
+                  {/* Risk & Rating Row */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <span className={riskDotClass(s.riskLevel)} />
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-secondary)" }}>{s.riskLevel} Risk</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-card-subtle)", border: "1px solid var(--border)", padding: "2px 8px", borderRadius: "5px" }}>
+                        {s.rating}
+                      </span>
+                      {s.exchangeListed && (
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--accent-emerald)", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", padding: "2px 8px", borderRadius: "5px" }}>
+                          NSE Listed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Calculation Box */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.25)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      padding: "12px 14px",
+                      marginBottom: "12px",
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "1px", marginBottom: "6px" }}>📐 CALCULATION</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.8 }}>
+                      <span style={{ color: typeColor }}>{formatINR(s.recommendedAmount)}</span>
+                      <span style={{ color: "var(--text-muted)" }}> × (1 + </span>
+                      <span style={{ color: "var(--accent-amber)" }}>{s.expectedReturnPct}%</span>
+                      <span style={{ color: "var(--text-muted)" }}>) ^ </span>
+                      <span style={{ color: "var(--accent-purple)" }}>{(s.tenureMonths / 12).toFixed(1)}yr</span>
+                      <br />
+                      <span style={{ color: "var(--text-muted)" }}>= </span>
+                      <span style={{ color: "var(--accent-emerald)", fontWeight: 800 }}>{formatINR(s.projectedValue)}</span>
+                      <span style={{ color: "var(--text-muted)" }}> | Gain: </span>
+                      <span style={{ color: "var(--accent-amber)", fontWeight: 800 }}>+{s.totalReturnPct}%</span>
+                    </div>
+                    <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--accent-sky)" }}>
+                      Annual Income: <strong>{formatINR(s.annualIncome)}/yr</strong>
+                    </div>
+                  </div>
+
+                  {/* Tax Benefit */}
+                  <div
+                    style={{
+                      background: "rgba(129,140,248,0.08)",
+                      border: "1px solid rgba(129,140,248,0.2)",
+                      borderRadius: "8px",
+                      padding: "10px 12px",
+                      marginBottom: "12px",
+                      fontSize: "12px",
+                      color: "var(--accent-purple)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    🏷️ Tax: {s.taxBenefit}
+                  </div>
+
+                  {/* Expand/Collapse */}
+                  <button
+                    style={{
+                      width: "100%",
+                      background: "transparent",
+                      border: `1px solid ${typeColor}40`,
+                      borderRadius: "8px",
+                      padding: "8px",
+                      color: typeColor,
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedId(isExpanded ? null : s.id);
+                    }}
+                  >
+                    {isExpanded ? "▲ Hide Details" : "▼ See Full Details, Risks & Highlights"}
+                  </button>
+
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px", animation: "pageEnter 0.2s ease" }}>
+                      {/* Why Recommended */}
+                      <div style={{ background: "var(--bg-card-subtle)", border: "1px solid var(--border)", borderRadius: "10px", padding: "14px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: typeColor, letterSpacing: "1px", marginBottom: "6px" }}>💡 WHY RECOMMENDED</div>
+                        <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.7, fontWeight: 500 }}>{s.whyRecommended}</p>
+                      </div>
+
+                      {/* Detailed Stats */}
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "1px", marginBottom: "8px" }}>📊 FULL STATS</div>
+                        {[
+                          { label: "Min. Investment", value: formatINR(s.minInvestment) },
+                          { label: "Recommended Amount", value: formatINR(s.recommendedAmount) },
+                          { label: "Tenure", value: tenureLabel(s.tenureMonths) },
+                          { label: "Expected Return (p.a.)", value: `${s.expectedReturnPct}% CAGR` },
+                          { label: "Distribution Yield", value: `${s.distributionYield}% p.a.` },
+                          { label: "Annual Income", value: formatINR(s.annualIncome) },
+                          { label: "Projected Corpus", value: formatINR(s.projectedValue) },
+                          { label: "Total Return", value: `${formatINR(s.totalReturn)} (+${s.totalReturnPct}%)` },
+                          { label: "Risk Score", value: `${s.riskScore}/10 (${s.riskLevel})` },
+                          { label: "Liquidity", value: s.liquidity },
+                          { label: "Exchange Listed", value: s.exchangeListed ? "Yes (NSE/BSE)" : "No (OTC/Direct)" },
+                          { label: "Credit Rating", value: s.rating },
+                          { label: "Portfolio Allocation", value: `${s.allocationPct}% of portfolio` },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="invest-stat-row">
+                            <span className="invest-stat-label">{label}</span>
+                            <span className="invest-stat-value">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Highlights */}
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--accent-emerald)", letterSpacing: "1px", marginBottom: "8px" }}>✅ HIGHLIGHTS</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                          {s.highlights.map((h, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-secondary)", fontWeight: 500 }}>
+                              <span style={{ color: "var(--accent-emerald)", fontSize: "16px" }}>●</span> {h}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Key Risks */}
+                      <div style={{ background: "var(--card-danger-bg)", border: "1px solid var(--card-danger-border)", borderRadius: "10px", padding: "14px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--accent-rose)", letterSpacing: "1px", marginBottom: "8px" }}>⚠️ KEY RISKS</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                          {s.keyRisks.map((r, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-secondary)", fontWeight: 500 }}>
+                              <span style={{ color: "var(--accent-rose)", fontSize: "14px" }}>▸</span> {r}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div
+          style={{
+            marginTop: "28px",
+            paddingTop: "16px",
+            borderTop: "1px solid var(--border)",
+            fontSize: "12px",
+            color: "var(--text-muted)",
+            lineHeight: 1.6,
+            fontWeight: 500,
+          }}
+        >
+          ⚠️ <strong style={{ color: "var(--accent-amber)" }}>Disclaimer:</strong> Investment suggestions are generated by Groq AI for informational purposes only. Past performance does not guarantee future returns. REITs, InvITs and bonds carry market and credit risks. Please consult a SEBI-registered investment advisor before investing.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TiltCard({
   children,
   className = "",
@@ -285,6 +713,13 @@ export default function DashboardPage() {
   const [question, setQuestion] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
+  // Investment Suggestions State
+  const [showInvestPanel, setShowInvestPanel] = useState(false);
+  const [investSuggestions, setInvestSuggestions] = useState<InvestmentSuggestion[]>([]);
+  const [loadingInvest, setLoadingInvest] = useState(false);
+  const [investProvider, setInvestProvider] = useState("Groq AI");
+  const [investFetched, setInvestFetched] = useState(false);
+
   useEffect(() => {
     const stored = sessionStorage.getItem("casData");
     if (stored) {
@@ -353,6 +788,39 @@ export default function DashboardPage() {
       setAiExplanation("Failed to connect to Groq AI. Please try again.");
     } finally {
       setLoadingAI(false);
+    }
+  };
+
+  const fetchInvestmentSuggestions = async () => {
+    setShowInvestPanel(true);
+    if (investFetched && investSuggestions.length > 0) return; // don't re-fetch
+    setLoadingInvest(true);
+    try {
+      const res = await fetch("/api/investment-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          totalValue: totalValue || 2450000,
+          assetAllocation: alloc || { equity: 71, debt: 17, gold: 12, other: 0 },
+          portfolioSummary: {
+            investor_name: casData?.investor_name || "Investor",
+            diversification_score: divScore || 70,
+            top_sectors: Array.isArray(sectors) ? sectors.slice(0, 5) : [],
+            has_gold: alternatives?.hasGold ?? false,
+            has_international: alternatives?.hasInternational ?? false,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.suggestions) {
+        setInvestSuggestions(data.suggestions);
+        setInvestProvider(data.provider || "Groq AI");
+        setInvestFetched(true);
+      }
+    } catch (err) {
+      console.error("Investment suggestions error:", err);
+    } finally {
+      setLoadingInvest(false);
     }
   };
 
@@ -425,7 +893,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
           <button
             className="btn-secondary"
             style={{ fontSize: "14px", padding: "10px 20px" }}
@@ -439,6 +907,14 @@ export default function DashboardPage() {
             onClick={() => askAI()}
           >
             ✨ Run AI Intelligence
+          </button>
+          <button
+            type="button"
+            className="btn-invest"
+            style={{ fontSize: "13px", padding: "10px 20px" }}
+            onClick={fetchInvestmentSuggestions}
+          >
+            💰 Investment Suggestions
           </button>
         </div>
       </div>
@@ -501,6 +977,84 @@ export default function DashboardPage() {
           </TiltCard>
         ))}
       </div>
+
+      {/* ====== INVESTMENT SUGGESTIONS CTA BANNER ====== */}
+      <div
+        style={{
+          marginBottom: "28px",
+          background: "linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(244,63,94,0.07) 50%, rgba(129,140,248,0.10) 100%)",
+          border: "1px solid rgba(245,158,11,0.35)",
+          borderRadius: "18px",
+          padding: "24px 32px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "20px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "2px", color: "var(--accent-amber)", marginBottom: "6px" }}>🤖 GROQ AI · INVESTMENT INTELLIGENCE</div>
+          <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.3px", margin: 0 }}>
+            Where Should You Invest Next?
+          </h2>
+          <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "5px", fontWeight: 500, maxWidth: "480px" }}>
+            Get AI-powered suggestions for <strong style={{ color: "var(--accent-teal)" }}>REITs</strong>, <strong style={{ color: "var(--accent-purple)" }}>InvITs</strong> &amp; <strong style={{ color: "var(--accent-emerald)" }}>Bonds</strong> — with exact amounts, return % calculations, tax benefits &amp; risk analysis tailored to your portfolio.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <span className="type-badge reit">🏢 REITs</span>
+            <span className="type-badge invit">⚡ InvITs</span>
+            <span className="type-badge bond">📄 Bonds</span>
+          </div>
+          <div
+            className="invest-btn-wrapper"
+            onClick={fetchInvestmentSuggestions}
+            style={{ cursor: "pointer", position: "relative", zIndex: 10 }}
+          >
+            <button
+              id="investment-suggestions-btn"
+              type="button"
+              className="btn-invest"
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchInvestmentSuggestions();
+              }}
+              disabled={loadingInvest}
+              style={{
+                pointerEvents: "auto",
+                position: "relative",
+                zIndex: 20,
+                cursor: "pointer",
+              }}
+            >
+              {loadingInvest ? (
+                <>
+                  <span style={{ display: "inline-block", animation: "spin 1s linear infinite", fontSize: "18px" }}>⟳</span>
+                  Generating Suggestions...
+                </>
+              ) : (
+                <>
+                  💰 Get Investment Suggestions
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Investment Panel Modal */}
+      {showInvestPanel && (
+        <InvestmentPanel
+          suggestions={investSuggestions}
+          loading={loadingInvest}
+          provider={investProvider}
+          onClose={() => setShowInvestPanel(false)}
+          formatINR={formatINR}
+          totalPortfolioValue={totalValue}
+        />
+      )}
 
       {/* Main Grid */}
       <div
